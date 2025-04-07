@@ -26,6 +26,16 @@ public class RegisterRequest {
     @NotNull(message = "Role is required")
     private UserRole role;
 
+    private String invitationToken;
+
+    public String getInvitationToken() {
+        return invitationToken;
+    }
+
+    public void setInvitationToken(String invitationToken) {
+        this.invitationToken = invitationToken;
+    }
+
     public String getFirstName() {
         return firstName;
     }

@@ -9,7 +9,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
-import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -34,6 +33,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 String token = authHeader.substring(7);
                 Jwt jwt = jwtDecoder.decode(token);
 
+                // Extract user identifier (email or preferred_username) to use as principal
+                String userIdentifier;
+                if (jwt.hasClaim("email")) {
+                    userIdentifier = jwt.getClaimAsString("email");
+                } else if (jwt.hasClaim("preferred_username")) {
+                    userIdentifier = jwt.getClaimAsString("preferred_username");
+                } else {
+                    userIdentifier = jwt.getSubject();
+                }
+
                 // Extract roles from realm_access.roles
                 List<String> roles = Collections.emptyList();
                 if (jwt.hasClaim("realm_access")) {
@@ -42,12 +51,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     roles = realmRoles;
                 }
 
-                // Create authentication token with roles
+                // Create authentication token with roles and user identifier as principal name
                 JwtAuthenticationToken authentication = new JwtAuthenticationToken(
                         jwt,
                         roles.stream()
                                 .map(role -> new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_" + role))
-                                .collect(Collectors.toList())
+                                .collect(Collectors.toList()),
+                        userIdentifier  // Use the extracted identifier as principal name
                 );
 
                 SecurityContextHolder.getContext().setAuthentication(authentication);

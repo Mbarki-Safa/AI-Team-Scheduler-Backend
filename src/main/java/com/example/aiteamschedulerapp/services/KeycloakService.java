@@ -37,6 +37,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.Base64;
 
 
 @Service
@@ -309,6 +312,60 @@ public class KeycloakService {
         }
     }
 
+    //refresh token
+    public AuthResponse refreshToken(String refreshToken) {
+        logger.info("Refreshing token using refresh token");
 
+        try {
+            // Prepare the form data for the token endpoint
+            MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
+            formData.add("grant_type", "refresh_token");
+            formData.add("refresh_token", refreshToken);
+            formData.add("client_id", clientId);
+            formData.add("client_secret", clientSecret);
 
+            // Create headers
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+
+            // Create the HTTP entity
+            HttpEntity<MultiValueMap<String, String>> entity = new HttpEntity<>(formData, headers);
+
+            // Make the request to the Keycloak token endpoint
+            String tokenEndpoint = authServerUrl + "/realms/" + realm + "/protocol/openid-connect/token";
+            ResponseEntity<Map> response = new RestTemplate().postForEntity(
+                    tokenEndpoint,
+                    entity,
+                    Map.class
+            );
+
+            // Extract the new tokens
+            Map<String, Object> responseBody = response.getBody();
+            String newAccessToken = (String) responseBody.get("access_token");
+            String newRefreshToken = (String) responseBody.get("refresh_token");
+
+            // Extract user information from the token
+            String[] jwtParts = newAccessToken.split("\\.");
+            String payload = new String(Base64.getUrlDecoder().decode(jwtParts[1]));
+            JsonNode payloadJson = new ObjectMapper().readTree(payload);
+            String email = payloadJson.get("email").asText();
+            logger.info("Attempting to find user with email: '{}'", email);
+
+            logger.info("JWT payload: {}", payload);
+
+            // Find the user in the database
+            User user = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+            // Create and return the response
+            return AuthResponse.builder()
+                    .accessToken(newAccessToken)
+                    .refreshToken(newRefreshToken)
+                    .user(mapToUserDTO(user))
+                    .build();
+        } catch (Exception e) {
+            logger.error("Token refresh failed: {}", e.getMessage(), e);
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid refresh token");
+        }
+    }
 }

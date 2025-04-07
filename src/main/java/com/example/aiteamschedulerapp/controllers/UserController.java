@@ -3,6 +3,7 @@ package com.example.aiteamschedulerapp.controllers;
 import com.example.aiteamschedulerapp.entities.User;
 import com.example.aiteamschedulerapp.repositories.UserRepository;
 import com.example.aiteamschedulerapp.services.KeycloakService;
+import com.example.aiteamschedulerapp.services.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,10 +25,13 @@ public class UserController {
 
     private final UserRepository userRepository;
     private final KeycloakService keycloakService;
+    private final UserService userService;
 
-    public UserController(UserRepository userRepository, KeycloakService keycloakService) {
+    public UserController(UserRepository userRepository, KeycloakService keycloakService , UserService userService) {
         this.userRepository = userRepository;
         this.keycloakService = keycloakService;
+        this.userService = userService;
+
     }
 
     @GetMapping
@@ -115,5 +120,13 @@ public class UserController {
             logger.error("Error deleting user with ID: {}", id, e);
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to delete user");
         }
+    }
+
+    @GetMapping("/available-emails")
+    @PreAuthorize("hasRole('Manager')")
+    public ResponseEntity<List<Map<String, String>>> getAvailableUsers() {
+        logger.info("Retrieving available users from user list");
+        List<Map<String, String>> availableUsers = userService.getAvailableUsers();
+        return ResponseEntity.ok(availableUsers);
     }
 }
